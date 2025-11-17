@@ -195,14 +195,6 @@ save_folder = "my_custom_folder"
 - **Memory**: Minimal (only stores hashes, not images in memory)
 - **Disk Space**: Depends on number of images in conversation
 
-## 🤝 Contributing
-
-Contributions are welcome! Areas for improvement:
-- Video download support
-- Date-range filtering
-- Sender-based organization
-- GUI interface
-- Better error recovery
 
 ## 📝 License
 
