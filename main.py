@@ -89,13 +89,13 @@ def get_image_hash(url):
     return hashlib.md5(url.encode()).hexdigest()
 
 def download_loaded_images(driver, save_folder="messenger_images"):
-    """Download all images currently loaded in the conversation"""
+    """Download all images and videos currently loaded in the conversation"""
     # Create save folder if it doesn't exist
     os.makedirs(save_folder, exist_ok=True)
     
-    # Find all image elements in the conversation
-    # Messenger uses img tags and background images
+    # Find images and videos separately
     images = driver.find_elements(By.XPATH, "//img[contains(@src, 'http')]")
+    videos = driver.find_elements(By.XPATH, "//video[contains(@src, 'http')]")
     
     downloaded_hashes = set()
     download_count = 0
@@ -106,13 +106,13 @@ def download_loaded_images(driver, save_folder="messenger_images"):
         with open(hash_file, 'r') as f:
             downloaded_hashes = set(f.read().splitlines())
     
-    print(f"\nFound {len(images)} images on page")
+    print(f"\nFound {len(images)} images and {len(videos)} videos on page")
     
+    # Process images
     for idx, img in enumerate(images):
         try:
             src = img.get_attribute('src')
             
-            # Skip if not a valid image URL
             if not src or 'blob:' in src or 'data:' in src:
                 continue
             
@@ -125,13 +125,11 @@ def download_loaded_images(driver, save_folder="messenger_images"):
             except:
                 pass
             
-            # Create hash to check for duplicates
             img_hash = get_image_hash(src)
             
             if img_hash in downloaded_hashes:
                 continue
             
-            # Generate filename
             timestamp = int(time.time() * 1000)
             ext = 'jpg'
             if '.png' in src.lower():
@@ -141,24 +139,81 @@ def download_loaded_images(driver, save_folder="messenger_images"):
             
             filename = f"img_{timestamp}_{idx}.{ext}"
             
-            # Download the image
             if download_image(src, save_folder, filename):
                 downloaded_hashes.add(img_hash)
                 download_count += 1
                 
-                # Save hash to file
                 with open(hash_file, 'a') as f:
                     f.write(f"{img_hash}\n")
             
-            time.sleep(0.1)  # Small delay to avoid overwhelming the server
+            time.sleep(0.1)
             
         except Exception as e:
             print(f"  Error processing image {idx}: {e}")
             continue
     
-    print(f"Downloaded {download_count} new images")
+    # Process videos
+    for idx, video in enumerate(videos):
+        try:
+            src = video.get_attribute('src')
+            
+            if not src or 'blob:' in src:
+                continue
+            
+            video_hash = get_image_hash(src)
+            
+            if video_hash in downloaded_hashes:
+                continue
+            
+            timestamp = int(time.time() * 1000)
+            
+            # Extract extension from URL
+            ext = 'mp4'  # default
+            if '.' in src.split('?')[0]:
+                ext = src.split('?')[0].split('.')[-1].lower()
+                if ext not in ['mp4', 'webm', 'mov', 'avi']:
+                    ext = 'mp4'
+            
+            filename = f"video_{timestamp}_{idx}.{ext}"
+            
+            # Download video
+            if download_video(src, save_folder, filename):
+                downloaded_hashes.add(video_hash)
+                download_count += 1
+                
+                with open(hash_file, 'a') as f:
+                    f.write(f"{video_hash}\n")
+            
+            time.sleep(0.1)
+            
+        except Exception as e:
+            print(f"  Error processing video {idx}: {e}")
+            continue
+    
+    print(f"Downloaded {download_count} new items")
     return download_count
 
+
+def download_video(url, folder, filename):
+    """Download a video file"""
+    try:
+        response = requests.get(url, stream=True, timeout=30)
+        response.raise_for_status()
+        
+        filepath = os.path.join(folder, filename)
+        
+        # Download in chunks for large video files
+        with open(filepath, 'wb') as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                if chunk:
+                    f.write(chunk)
+        
+        print(f"  Downloaded video: {filename}")
+        return True
+        
+    except Exception as e:
+        print(f"  Failed to download video {filename}: {e}")
+        return False
 def scroll_until_date(driver, target_date=None, max_scrolls=100, download_images=False, save_folder="messenger_images"):
     """
     Scrolls Messenger chat upwards to load older messages.
